@@ -1,9 +1,15 @@
-#include <ESP8266WiFi.h>          //https://github.com/esp8266/Arduino
+#define serdebug
+#ifdef serdebug
+#define DebugPrint(...) {  Serial.print(__VA_ARGS__); }
+#define DebugPrintln(...) {  Serial.println(__VA_ARGS__); }
+#else
+#define DebugPrint(...) { }
+#define DebugPrintln(...) { }
+#endif
 
-//needed for library
-#include <DNSServer.h>
-#include <ESP8266WebServer.h>
-#include <WiFiManager.h>         //https://github.com/tzapu/WiFiManager
+
+#include "tools_wifiman.h"
+#include "ota_tool.h"
 
 #include <WiFiUdp.h>
 
@@ -22,9 +28,9 @@ byte packetBuffer[ Bell_PACKET_SIZE]; //buffer to hold incoming and outgoing pac
 WiFiUDP udp;
 
 void setup() {
-  // put your setup code here, to run once:
+#ifdef serdebug
   Serial.begin(115200);
-
+#endif
 
   // initialize the sound-Module pin as an output:
   pinMode(BellSoundPin, OUTPUT);
@@ -33,29 +39,20 @@ void setup() {
   // initialize the pushbutton pin as an input:
   pinMode(BellButtonPin, INPUT);
 
-  //WiFiManager
-  //Local intialization. Once its business is done, there is no need to keep it around
-  WiFiManager wifiManager;
-  //reset saved settings
-  //wifiManager.resetSettings();
+  wifi_init("ESPBell");
 
-  //fetches ssid and pass from eeprom and tries to connect
-  //if it does not connect it starts an access point with the specified name
-  //here  "AutoConnectAP"
-  //and goes into a blocking loop awaiting configuration
-  wifiManager.autoConnect("AutoConnectAP");
+  init_ota("ESPBell");
 
-  //if you get here you have connected to the WiFi
-  Serial.println("connected...yeey :)");
-
-  Serial.println("Starting UDP");
+  DebugPrintln("Starting UDP");
   udp.begin(localPort);
-  Serial.print("Local port: ");
-  Serial.println(udp.localPort());
+  DebugPrint("Local port: ");
+  DebugPrintln(udp.localPort());
 
 }
 
 void loop() {
+
+  check_ota();
 
   if (digitalRead(BellButtonPin) == LOW) {
     sendBellpacket(BroadcastIP); // send an NTP packet to a time server
@@ -102,13 +99,13 @@ void rcvBellpacket() {
     return;
   }
 
-  Serial.print("packet received, length=");
-  Serial.println(cb);
+  DebugPrint("packet received, length=");
+  DebugPrintln(cb);
   // We've received a packet, read the data from it
   udp.read(packetBuffer, Bell_PACKET_SIZE); // read the packet into the buffer
 
-  Serial.print("Bell#: ");
-  Serial.println(packetBuffer[0]);
+  DebugPrint("Bell#: ");
+  DebugPrintln(packetBuffer[0]);
   playBell(1);
 
 }
@@ -116,7 +113,7 @@ void rcvBellpacket() {
 // send an Bell Signal to all Receivers on the net
 unsigned long sendBellpacket(IPAddress& address)
 {
-  Serial.println("sending Bell packet...");
+  DebugPrintln("sending Bell packet...");
   // set all bytes in the buffer to 0
   memset(packetBuffer, 0, Bell_PACKET_SIZE);
   packetBuffer[0] = BellNbr;   //Bell Number
